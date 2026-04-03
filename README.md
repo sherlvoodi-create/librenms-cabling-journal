@@ -109,11 +109,11 @@ git clone https://github.com
 ```bash
 cd /opt/librenms/html/plugins/
 git clone https://github.com
-done
+
 ```
 3. **Активация**:
 Включите плагин в базе данных:
 ```bash
 INSERT INTO `plugins` (`plugin_name`, `plugin_enabled`, `plugin_order`) VALUES ('CablingJournal', 1, 10);
-done
+
 ```
