@@ -1,0 +1,404 @@
+<?php
+// 1. Подключение к БД LibreNMS
+$env_file = '/opt/librenms/.env';
+if (!file_exists($env_file)) die("Error: .env file not found");
+
+$env_vars = [];
+$lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+foreach ($lines as $line) {
+    if (strpos(trim($line), '#') === 0) continue; // Пропускаем комментарии
+    list($name, $value) = explode('=', $line, 2);
+    $env_vars[trim($name)] = trim($value, " '\""); // Убираем лишние пробелы и кавычки
+}
+
+// 2. Подключение к БД
+$db = new mysqli(
+    'localhost',
+    $env_vars['DB_USERNAME'],
+    $env_vars['DB_PASSWORD'],
+    $env_vars['DB_DATABASE']
+);
+
+if ($db->connect_error) {
+    die("DB Connection failed: " . $db->connect_error);
+}
+$db->set_charset("utf8mb4");
+
+if ($db->connect_error) die("DB Connection failed");
+
+$rack_id = isset($_GET['rack_id']) ? intval($_GET['rack_id']) : null;
+
+echo "<html><head>";
+?>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
+<?php
+echo " <style>
+        body { background: #f4f4f4; padding: 20px; font-family: sans-serif; }
+        .rack-container { background: #fff; border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+        .rack-unit { border-bottom: 1px solid #eee; height: 30px; line-height: 30px; display: flex; }
+        .unit-num { width: 40px; background: #eee; text-align: center; font-weight: bold; border-right: 1px solid #ccc; }
+        .unit-content { flex-grow: 1; padding-left: 10px; }
+        .occupied { background: #d9edf7; border-left: 5px solid #31708f; }
+        .panel { background: #fcf8e3; border-left: 5px solid #8a6d3b; }
+    </style>
+</head><body>";
+
+if (!$rack_id) {
+    // --- РЕЖИМ 1: Список всех шкафов ---
+    echo "<div class='container'><h2>Кабельный журнал: Шкафы и Ниши</h2>";
+    echo "<table class='table table-bordered table-striped' style='background:#fff;'>
+            <thead><tr>
+                <th>Здание (Location)</th>
+                <th>Название шкафа</th>
+                <th>Этаж</th>
+                <th>Юнитов</th>
+                <th>Тип</th>
+                <th>Действие</th>
+            </tr></thead><tbody>";
+
+    $sql = "SELECT r.*, l.location FROM custom_racks r LEFT JOIN locations l ON r.location_id = l.id";
+    $res = $db->query($sql);
+
+    while ($row = $res->fetch_assoc()) {
+        echo "<tr>
+                <td><i class='glyphicon glyphicon-map-marker'></i> {$row['location']}</td>
+                <td><strong>{$row['name']}</strong></td>
+                <td>{$row['floor']}</td>
+                <td>{$row['units']}U</td>
+                <td><span class='label label-default'>{$row['type']}</span></td>
+                <td><a href='?rack_id={$row['id']}' class='btn btn-primary btn-sm'>Просмотр</a></td>
+              </tr>";
+    }
+    echo "</tbody></table></div>";
+
+} else {
+    // --- РЕЖИМ 2: Rack Explorer (Вид шкафа) ---
+
+    // 1. Получаем данные о конкретном шкафе
+    $stmt = $db->prepare("SELECT * FROM custom_racks WHERE id = ?");
+    $stmt->bind_param("i", $rack_id);
+    $stmt->execute();
+    $rack = $stmt->get_result()->fetch_assoc();
+
+    if (!$rack) die("Шкаф не найден");
+
+    // 2. Стили (включая порты)
+    echo "<style>
+        /* Общие отступы */
+        body { background: #f4f4f4; padding: 20px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+
+        /* Сетка портов */
+        .port-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; padding: 6px; background: #222; border-radius: 4px; width: fit-content; }
+        .port-box { width: 12px; height: 12px; background: #555; border: 1px solid #000; cursor: pointer; display: block; border-radius: 1px; }
+        .port-up { background: #2ecc71 !important; box-shadow: 0 0 4px #2ecc71; }
+        .port-down { background: #e74c3c !important; }
+
+        /* Группировка портов */
+        .row-container { display: flex; flex-direction: column; gap: 3px; }
+        .sfp-block { margin-left: 12px; border-left: 2px solid #444; padding-left: 8px; display: flex; align-items: flex-end; gap: 3px; height: 27px; }
+
+        /* Юнит шкафа */
+        .rack-unit {
+            border-bottom: 1px solid #ddd;
+            min-height: 55px; /* Увеличили, чтобы влезло 2 ряда портов */
+            height: auto;
+            display: flex;
+            align-items: stretch;
+            background: #fff;
+        }
+        .unit-num {
+            width: 45px;
+            background: #f0f0f0;
+            text-align: center;
+            font-weight: bold;
+            border-right: 2px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            flex-shrink: 0;
+        }
+        .unit-content { flex-grow: 1; padding: 8px 15px; overflow: hidden; }
+
+        /* Цвета заполнения */
+        .occupied { background: #f0f9ff !important; border-left: 5px solid #3498db; }
+        .panel { background: #fffef0 !important; border-left: 5px solid #f1c40f; }
+        .text-muted { color: #bbb; font-size: 12px; }
+    </style><style>
+    /* Стиль для скрытия */
+    .rack-unit.empty-u.is-hidden {
+        display: none !important;
+    }
+    /* Группировка волокон в муфте */
+.fiber-module {
+    display: flex;
+    gap: 3px;
+    padding: 5px;
+    background: #444;
+    border-radius: 3px;
+    border: 1px solid #555;
+}
+.fiber-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.well-ext {
+    background: #fff;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+
+/* Кастомный тултип */
+#custom-tooltip {
+    position: fixed;
+    display: none;
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    border-radius: 5px;
+    font-size: 16px; /* Вот здесь регулируем размер текста */
+    z-index: 10000;
+    pointer-events: none; /* Чтобы не мешал кликам */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    border: 1px solid #555;
+    max-width: 400px;
+    line-height: 1.4;
+}
+.tooltip-header { color: #3498db; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #444; }
+
+
+</style>
+
+<script>
+function toggleEmpty() {
+    const hide = document.getElementById('hideEmptyUnits').checked;
+    const emptyUnits = document.querySelectorAll('.empty-u');
+
+    emptyUnits.forEach(unit => {
+        if (hide) {
+            unit.classList.add('is-hidden');
+        } else {
+            unit.classList.remove('is-hidden');
+        }
+    });
+}
+
+// Запускаем скрытие при загрузке страницы, так как чекбокс 'checked'
+window.onload = toggleEmpty;
+</script>";
+
+    // Ссылка на Bootstrap для правильной сетки (замените вашу битую ссылку)
+    echo "<link rel='stylesheet' href='https://cloudflare.com'>";
+
+    echo "<div class='container'><br><a href='?' class='btn btn-default'>&larr; Назад к списку</a>";
+    echo "<h2>Шкаф: {$rack['name']} ({$rack['units']}U)</h2>";
+    echo "<div style='margin-bottom: 15px; background: #fff; padding: 15px; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; gap: 20px;'>
+        <label style='cursor:pointer; user-select:none; margin:0;'>
+            <input type='checkbox' id='hideEmptyUnits' checked onchange='toggleEmpty()'>
+            <span style='margin-left:5px;'>Скрывать пустые юниты</span>
+        </label>
+      </div>";
+    // 3. Собираем всё оборудование в этом шкафу
+    $items = [];
+    // Активка
+    $q_dev = $db->query("SELECT rd.*, d.hostname FROM custom_rack_devices rd JOIN devices d ON rd.device_id = d.device_id WHERE rd.rack_id = $rack_id");
+    while($d = $q_dev->fetch_assoc()) {
+        $items[$d['start_unit']] = ['name' => $d['hostname'], 'type' => 'device', 'id' => $d['device_id']];
+    }
+    // Пассив (только те, что в стойке: distance = 0)
+    $q_pan = $db->query("SELECT * FROM custom_panels WHERE rack_id = $rack_id AND distance_from_rack = 0");
+    while($p = $q_pan->fetch_assoc()) {
+        $items[$p['start_unit']] = ['name' => $p['name'], 'type' => 'panel', 'id' => $p['id']];
+    }
+
+    echo "<div class='rack-container col-md-11' style='background:#fff; border:1px solid #ccc; padding:0;'>";
+
+    // 4. Отрисовка юнитов Сверху Вниз
+    for ($u = $rack['units']; $u >= 1; $u--) {
+        $class = "empty-u";
+        $content = "<span class='text-muted'>- empty -</span>";
+
+        if (isset($items[$u])) {
+            $item = $items[$u];
+            $class = ($item['type'] == 'device') ? "occupied" : "panel";
+            $title = ($item['type'] == 'device')
+                ? "<a href='/device/device={$item['id']}/' target='_blank'><strong><i class='glyphicon glyphicon-hdd'></i> {$item['name']}</strong></a>"
+                : "<strong><i class='glyphicon glyphicon-list-alt'></i> {$item['name']}</strong>";
+            $ports_html = "<div style='display:flex; align-items: flex-end;'> <div class='port-grid'>";
+            if ($item['type'] == 'device') {
+                // Берем порты из LibreNMS
+                $p_res = $db->query("SELECT ifOperStatus, ifIndex, ifName, port_id, ifAlias FROM ports WHERE device_id = {$item['id']} ORDER BY ifIndex ASC LIMIT 52");
+                $p_data = $p_res->fetch_all(MYSQLI_ASSOC);
+                $row1 = array_slice($p_data, 0, 24);
+                $row2 = array_slice($p_data, 24, 24);
+                $sfp  = array_slice($p_data, 48);
+                $ports_html .= "<div class='row-container'>";
+                foreach ([$row1, $row2] as $row) {
+                    $ports_html .= "<div style='display:flex; gap:2px;'>";
+                    foreach ($row as $p) {
+                        $st = ($p['ifOperStatus'] == 'up') ? 'port-up' : 'port-down';
+                        // Оборачиваем в ссылку на конкретный порт
+                        $port_url = "/device/device={$item['id']}/tab=port/port={$p['port_id']}/";
+                        // Если description (ifAlias) пустой, выводим только имя порта
+                        $full_title = !empty($p['ifAlias']) ? htmlspecialchars($p['ifAlias']) : $p['ifName'];
+                        $ports_html .= "<a href='$port_url' target='_blank' class='port-box $st' data-tip='$full_title'></a>";
+                    }
+                    $ports_html .= "</div>";
+                }
+                $ports_html .= "</div>";
+                if ($sfp) {
+                    $ports_html .= "<div class='sfp-block'>";
+                    foreach ($sfp as $p) {
+                        $st = ($p['ifOperStatus'] == 'up') ? 'port-up' : 'port-down';
+                        $port_url = "/device/device={$item['id']}/tab=port/port={$p['port_id']}/";
+                        $full_title = !empty($p['ifAlias']) ? htmlspecialchars($p['ifAlias']) : $p['ifName'];
+                        $ports_html .= "<a href='$port_url' target='_blank' class='port-box $st' data-tip='$full_title'} (ID: {$p['port_id']})'></a>";
+                    }
+                    $ports_html .= "</div>";
+                }
+             else {
+                $p_res = $db->query("SELECT * FROM custom_panel_ports WHERE panel_id = {$item['id']} ORDER BY port_number ASC");
+                $p_count = $p_res->num_rows;
+                if ($p_count == 0) $p_count = 24;
+                $i = 1;
+                while ($p = $p_res->fetch_assoc()) {
+                    if ($i > 1 && ($i-1) % 24 == 0) $ports_html .= "</div><div class='port-grid' style='margin-left:5px;'>";
+                    $color = !empty($p['fiber_color']) ? $p['fiber_color'] : '#666';
+                    $ports_html .= "<div class='port-box' style='background:$color;' data-tip='Panel Port {$p['port_number']}'></div>";
+                    $i++;
+                }
+                $ports_html .= "</div>";
+            }
+        }else{
+            $content = "<button class='btn btn-xs btn-default' onclick='openAddModal($u)' style='opacity:0.3;' onmouseover='this.style.opacity=1' onmouseout='this.style.opacity=0.3'>
+                        <i class='glyphicon glyphicon-plus'></i> Add
+                    </button>";
+            }
+            $ports_html .= "</div> </div>";
+            $content = "<div>$title $ports_html</div>";
+
+        echo "<div class='rack-unit $class'>
+                <div class='unit-num'>$u</div>
+                <div class='unit-content'>$content</div>
+              </div>";
+        }
+    }
+    echo "</div>"; // end rack-container
+
+    // 5. Внешние узлы (муфты)
+    // 5. Внешние узлы (муфты/кроссы)
+$ext_res = $db->query("SELECT * FROM custom_panels WHERE rack_id = $rack_id AND distance_from_rack > 0");
+
+if ($ext_res->num_rows > 0) {
+    echo "<div class='col-md-11' style='margin-top:30px; padding:0;'>";
+    echo "<h3><i class='glyphicon glyphicon-transfer'></i> Внешние узлы (муфты/кроссы)</h3>";
+
+    while ($ex = $ext_res->fetch_assoc()) {
+        echo "<div class='well-ext'>";
+        echo "<h4 style='margin-top:0;'>{$ex['name']} <small>({$ex['type']}) — <span class='text-primary'>{$ex['distance_from_rack']}м</span> от шкафа</small></h4>";
+
+        // Получаем порты/волокна для этой муфты
+        $p_query = $db->query("SELECT * FROM custom_panel_ports WHERE panel_id = {$ex['id']} ORDER BY port_number ASC");
+        $ports = $p_query->fetch_all(MYSQLI_ASSOC);
+        $total_ports = count($ports) ?: 12; // Если портов нет в базе, рисуем заглушку
+
+        echo "<div class='fiber-row'>";
+
+        // Разбиваем все порты на модули по 8 штук
+        $modules = array_chunk($ports, 8);
+        $module_count = 0;
+
+        foreach ($modules as $module) {
+            $module_count++;
+
+            // Если это 5-й модуль, начинаем новый ряд (fiber-row)
+            if ($module_count > 4) {
+                echo "</div><div class='fiber-row'>";
+                $module_count = 1;
+            }
+
+            echo "<div class='fiber-module' title='Module " . ceil($module_count) . "'>";
+            foreach ($module as $p) {
+                // Если цвет задан в БД, используем его, иначе серый
+                $color = !empty($p['fiber_color']) ? $p['fiber_color'] : '#666';
+                // Для светлых цветов (белый, желтый) добавим темную обводку
+                $border = ($color == 'White' || $color == 'Yellow') ? '1px solid #ccc' : '1px solid #000';
+
+                echo "<div class='port-box'
+                           style='background: $color; border: $border;'
+                           title='Port {$p['port_number']} (Color: {$p['fiber_color']})'>
+                      </div>";
+            }
+            // Если в муфте меньше 8 портов в последнем модуле, можно оставить как есть
+            echo "</div>";
+        }
+
+        // Если в базе вообще нет портов для этой муфты, нарисуем пустые серые
+        if (empty($ports)) {
+            echo "<div class='fiber-module'>";
+            for ($i=1; $i<=8; $i++) echo "<div class='port-box'></div>";
+            echo "</div>";
+        }
+
+        echo "</div>"; // end fiber-row
+        echo "<p class='text-muted' style='margin-bottom:0;'><small>{$ex['note']}</small></p>";
+        echo "</div>"; // end well-ext
+    }
+    echo "</div>";
+}
+}
+
+echo "</body></html>";
+?>
+<div id="custom-tooltip"></div>
+
+<script>
+
+const tooltip = document.getElementById('custom-tooltip');
+
+document.addEventListener('mouseover', function(e) {
+    const tipData = e.target.getAttribute('data-tip');
+    if (tipData) {
+        // Разбиваем текст (если там есть "|", сделаем красивый заголовок)
+        const parts = tipData.split('|');
+        let html = '';
+        if (parts.length > 1) {
+            html = '<div class="tooltip-header">' + parts[0] + '</div>' + parts[1];
+        } else {
+            html = tipData;
+        }
+
+        tooltip.innerHTML = html;
+        tooltip.style.display = 'block';
+    }
+});
+
+document.addEventListener('mousemove', function(e) {
+    if (tooltip.style.display === 'block') {
+        // Смещаем тултип чуть правее и ниже курсора
+        tooltip.style.left = (e.clientX + 15) + 'px';
+        tooltip.style.top = (e.clientY + 15) + 'px';
+    }
+});
+
+document.addEventListener('mouseout', function(e) {
+    if (e.target.hasAttribute('data-tip')) {
+        tooltip.style.display = 'none';
+    }
+});
+
+function openAddModal(u) {
+    document.getElementById('modal-u-num').innerText = u;
+    document.getElementById('modal-u-input').value = u;
+    $('#addPanelModal').modal('show');
+}
+</script>
+
+
