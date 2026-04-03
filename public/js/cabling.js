@@ -25,7 +25,9 @@ document.addEventListener('mouseout', () => tooltip.style.display = 'none');
 
 // Модалка добавления
 function openAddModal(u) {
-    document.getElementById('modal-u-num').innerText = u;
-    document.getElementById('modal-u-input').value = u;
+    const modalNum = document.getElementById('modal-u-num');
+    const modalInput = document.getElementById('modal-u-input');
+    if(modalNum) modalNum.innerText = u;
+    if(modalInput) modalInput.value = u;
     $('#addPanelModal').modal('show');
 }
