@@ -1,0 +1,17 @@
+/* Общие стили */
+body { background: #f4f4f4; padding: 20px; font-family: sans-serif; }
+.rack-container { background: #fff; border: 1px solid #ccc; padding: 0; border-radius: 5px; }
+
+/* Юниты */
+.rack-unit { border-bottom: 1px solid #ddd; min-height: 55px; display: flex; align-items: stretch; background: #fff; position: relative; }
+.unit-num { width: 45px; background: #f0f0f0; text-align: center; font-weight: bold; border-right: 2px solid #ccc; display: flex; align-items: center; justify-content: center; color: #666; flex-shrink: 0; }
+.unit-content { flex-grow: 1; padding: 8px 15px; }
+
+/* Порты */
+.port-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; padding: 6px; background: #222; border-radius: 4px; width: fit-content; }
+.port-box { width: 12px; height: 12px; background: #555; border: 1px solid #000; cursor: pointer; display: block; border-radius: 1px; }
+.port-up { background: #2ecc71 !important; box-shadow: 0 0 4px #2ecc71; }
+.port-down { background: #e74c3c !important; }
+
+/* Тултип */
+#custom-tooltip { position: fixed; display: none; padding: 10px 15px; background: rgba(0,0,0,0.9); color: #fff; border-radius: 5px; font-size: 16px; z-index: 10000; pointer-events: none; border: 1px solid #555; }
