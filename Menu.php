@@ -8,10 +8,6 @@ class Menu implements MenuEntryHook
 {
     public function menu()
     {
-        return [
-            'title' => 'Cabling Journal',
-            'url' => 'plugin/CablingJournal',
-            'icon' => 'fa fa-microchip',
-        ];
+
     }
 }
