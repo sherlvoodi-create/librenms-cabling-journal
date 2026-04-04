@@ -110,8 +110,8 @@ return [
         ],
     ],
     'custom_rack_devices' => [
-        1 => ['id' => 1, 'rack_id' => 1, 'device_id' => 10, 'start_unit' => 1, 'note' => 'Core Switch'],
-        2 => ['id' => 2, 'rack_id' => 1, 'device_id' => 11, 'start_unit' => 5, 'note' => 'Aggregation'],
-        3 => ['id' => 3, 'rack_id' => 3, 'device_id' => 25, 'start_unit' => 2, 'note' => 'Storage'],
+        1 => ['id' => 1, 'rack_id' => 1, 'device_id' => 10, 'start_unit' => 38, 'note' => 'Core Switch'],
+        2 => ['id' => 2, 'rack_id' => 1, 'device_id' => 11, 'start_unit' => 36, 'note' => 'Aggregation'],
+        3 => ['id' => 3, 'rack_id' => 3, 'device_id' => 25, 'start_unit' => 34, 'note' => 'Storage'],
     ],
 ];
