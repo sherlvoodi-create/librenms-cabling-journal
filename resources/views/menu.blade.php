@@ -1,1 +1,1 @@
-<li><a href="{{ url('page/cabling-journal') }}">Кабельный журнал</a></li>
+<li><a href="{{ url('plugin/CablingJournal') }}">Кабельный журнал</a></li>
