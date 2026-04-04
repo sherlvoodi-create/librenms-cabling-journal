@@ -6,8 +6,5 @@ use App\Plugins\Hooks\MenuEntryHook;
 
 class Menu extends MenuEntryHook
 {
-    public function menu()
-    {
 
-    }
 }
