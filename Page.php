@@ -10,6 +10,12 @@ class Page extends PageHook
     public string $view = 'plugins.CablingJournal.resources.views.page';
     private string $dbPath;
 
+    public function __construct()
+    {
+        // Путь к файлу базы данных внутри плагина
+        $this->dbPath = __DIR__ . '/data/database.php';
+    }
+    
     /**
      * Разрешаем доступ всем авторизованным пользователям
      */
