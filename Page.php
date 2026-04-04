@@ -31,36 +31,31 @@ class Page extends PageHook
     {
        $request = request();
 
-        // 1. Обработка POST (Сохранение нового шкафа/рэка из вашего скрипта)
-        if ($request->isMethod('post') && $request->has('add_rack')) {
-            DB::table('custom_racks')->insert([
+        // 1. Загружаем данные из файла (или создаем пустой массив)
+        $data = file_exists($this->dbPath) ? include $this->dbPath : ['racks' => []];
+
+        // 2. Обработка сохранения (POST)
+        if ($request->isMethod('post')) {
+            $newRack = [
+                'id'          => time(), // Простой ID на основе времени
                 'name'        => $request->input('name'),
-                'location_id' => $request->input('location_id'),
+                'location'    => $request->input('location'),
                 'units'       => $request->input('units', 42),
                 'description' => $request->input('description'),
-            ]);
-            
-            session()->flash('status', 'Стойка успешно добавлена!');
+            ];
+
+            $data['racks'][] = $newRack;
+
+            // Сохраняем обратно в файл через var_export
+            $code = "<?php\nreturn " . var_export($data, true) . ";";
+            file_put_contents($this->dbPath, $code);
+
+            session()->flash('status', 'Запись сохранена в файл!');
         }
 
-        // 2. Получение списка шкафов с привязкой к локациям (Ваш SQL с LEFT JOIN)
-        // SQL: SELECT r.*, l.location FROM custom_racks r LEFT JOIN locations l ON r.location_id = l.id
-        $racks = DB::table('custom_racks as r')
-            ->leftJoin('locations as l', 'r.location_id', '=', 'l.id')
-            ->select('r.*', 'l.location as location_name')
-            ->orderBy('r.name', 'asc')
-            ->get();
-
-        // 3. Получение списка локаций для выпадающего списка в форме
-        $locations = DB::table('locations')
-            ->select('id', 'location')
-            ->orderBy('location')
-            ->get();
-
         return [
-            'racks'     => $racks,
-            'locations' => $locations,
-            'title'     => 'Управление кабельным журналом (Стойки)'
+            'racks' => $data['racks'],
+            'title' => 'Кабельный журнал (File DB)'
         ];
     }
 }
