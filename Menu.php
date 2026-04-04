@@ -2,7 +2,7 @@
 // app/Plugins/CablingJournal/Menu.php
 namespace App\Plugins\CablingJournal;
 
-use LibreNMS\Interfaces\Plugins\MenuEntryHook;
+use App\Plugins\Hooks\MenuEntryHook;
 
 class Menu extends MenuEntryHook
 {
