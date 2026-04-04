@@ -4,92 +4,111 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <h3>{{ $title }}</h3>
+    <h3>{{ $title }}</h3>
 
-            {{-- Сообщение об успешном сохранении --}}
-            @if(session('status'))
-                <div class="alert alert-success alert-dismissible">
-                    <button type="button" class="close" data-dismiss="alert">&times;</button>
-                    {{ session('status') }}
-                </div>
-            @endif
+    @if(session('status'))
+        <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
 
-            {{-- Форма добавления (из вашего скрипта) --}}
-            <div class="panel panel-default">
-                <div class="panel-heading">
-                    <h3 class="panel-title">Добавить новую запись</h3>
-                </div>
-                <div class="panel-body">
-                    <form action="{{ route('plugin', ['plugin' => 'CablingJournal']) }}" method="POST" class="form-horizontal">
-                        @csrf
-                        <div class="row">
-                            <div class="col-md-3">
-                                <label>Устройство (Device ID):</label>
-                                <input type="number" name="device_id" class="form-control" required placeholder="Например: 1">
-                            </div>
-                            <div class="col-md-3">
-                                <label>Порт (Port ID):</label>
-                                <input type="number" name="port_id" class="form-control" required placeholder="Например: 105">
-                            </div>
-                            <div class="col-md-3">
-                                <label>Тип кабеля:</label>
-                                <input type="text" name="cable_type" class="form-control" placeholder="UTP / Fiber">
-                            </div>
-                            <div class="col-md-3">
-                                <label>Описание:</label>
-                                <input type="text" name="description" class="form-control" placeholder="Стойка А, юнит 5">
-                            </div>
+    <div class="panel panel-default">
+        <div class="panel-body">
+            {{-- Форма из вашего скрипта --}}
+            <form action="{{ route('plugin', ['plugin' => 'CablingJournal']) }}" method="POST" id="journalForm">
+                @csrf
+                <div class="row">
+                    {{-- Выбор типа устройства --}}
+                    <div class="col-md-3">
+                        <label>Тип устройства:</label>
+                        <select name="device_type" id="device_type" class="form-control" onchange="toggleFields()">
+                            <option value="active">Активное (LibreNMS)</option>
+                            <option value="passive">Пассивное (ODF/PatchPanel)</option>
+                        </select>
+                    </div>
+
+                    {{-- Поля для Активного устройства --}}
+                    <div id="active_fields">
+                        <div class="col-md-3">
+                            <label>Устройство:</label>
+                            <select name="device_id" class="form-control">
+                                @foreach($devices as $device)
+                                    <option value="{{ $device->device_id }}">{{ $device->hostname }}</option>
+                                @endforeach
+                            </select>
                         </div>
-                        <div class="row" style="margin-top: 15px;">
-                            <div class="col-md-12 text-right">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fa fa-save"></i> Сохранить в журнал
-                                </button>
-                            </div>
+                        <div class="col-md-3">
+                            <label>Port ID:</label>
+                            <input type="number" name="port_id" class="form-control" placeholder="105">
                         </div>
-                    </form>
-                </div>
-            </div>
+                    </div>
 
-            {{-- Таблица записей (результат вашего JOIN запроса) --}}
-            <div class="panel panel-default">
-                <div class="panel-heading">
-                    <h3 class="panel-title">История соединений</h3>
+                    {{-- Поля для Пассивного устройства (скрыты по умолчанию) --}}
+                    <div id="passive_fields" style="display:none;">
+                        <div class="col-md-3">
+                            <label>Название панели:</label>
+                            <input type="text" name="passive_name" class="form-control" placeholder="ODF-01">
+                        </div>
+                        <div class="col-md-3">
+                            <label>Юнит/Слот:</label>
+                            <input type="text" name="passive_unit" class="form-control" placeholder="Slot 5">
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>Тип кабеля:</label>
+                        <input type="text" name="cable_type" class="form-control" placeholder="SM 9/125">
+                    </div>
                 </div>
-                <div class="panel-body">
-                    <table class="table table-hover table-striped table-condensed borderless">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Устройство (Hostname)</th>
-                                <th>Порт (Interface)</th>
-                                <th>Тип кабеля</th>
-                                <th>Описание</th>
-                                <th style="width: 150px;">Дата</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($cables as $cable)
-                                <tr>
-                                    <td>{{ $cable->id }}</td>
-                                    <td><strong>{{ $cable->device_name ?? 'ID: '.$cable->device_id }}</strong></td>
-                                    <td>{{ $cable->port_name ?? 'ID: '.$cable->port_id }}</td>
-                                    <td><span class="label label-info">{{ $cable->cable_type }}</span></td>
-                                    <td>{{ $cable->description }}</td>
-                                    <td><small>{{ $cable->created_at ?? '-' }}</small></td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center">Записей пока нет</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+
+                <div class="row" style="margin-top: 15px;">
+                    <div class="col-md-12 text-right">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
                 </div>
-            </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Таблица --}}
+    <div class="panel panel-default">
+        <div class="panel-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Устройство</th>
+                        <th>Порт/Юнит</th>
+                        <th>Тип кабеля</th>
+                        <th>Описание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($cables as $cable)
+                    <tr>
+                        <td>{{ $cable->device_name ?? $cable->passive_name }}</td>
+                        <td>{{ $cable->port_name ?? $cable->passive_unit }}</td>
+                        <td>{{ $cable->cable_type }}</td>
+                        <td>{{ $cable->description }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+{{-- Вставляем ваш JS --}}
+<script>
+function toggleFields() {
+    var type = document.getElementById("device_type").value;
+    var activeFields = document.getElementById("active_fields");
+    var passiveFields = document.getElementById("passive_fields");
+
+    if (type === "active") {
+        activeFields.style.display = "block";
+        passiveFields.style.display = "none";
+    } else {
+        activeFields.style.display = "none";
+        passiveFields.style.display = "block";
+    }
+}
+</script>
 @endsection
