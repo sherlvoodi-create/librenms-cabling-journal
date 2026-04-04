@@ -110,5 +110,16 @@ function toggleFields() {
         passiveFields.style.display = "block";
     }
 }
+    $(document).ready(function() {
+    $('#device_type').on('change', function() {
+        if($(this).val() == 'passive') {
+            $('#active_fields').hide();
+            $('#passive_fields').show();
+        } else {
+            $('#active_fields').show();
+            $('#passive_fields').hide();
+        }
+    });
+});
 </script>
 @endsection
