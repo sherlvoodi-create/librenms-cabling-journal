@@ -2,13 +2,13 @@
 namespace App\Plugins\CablingJournal;
 
 use App\Plugins\Hooks\PageHook;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 class Page extends PageHook
 {
     // Путь к шаблону относительно resources/views
     public string $view = 'plugins.CablingJournal.resources.views.page';
+    private string $dbPath;
 
     /**
      * Разрешаем доступ всем авторизованным пользователям
