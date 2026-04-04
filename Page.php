@@ -23,41 +23,38 @@ class Page extends PageHook
      */
     public function data(): array
     {
-        $request = request();
+       $request = request();
 
-        // 1. Логика сохранения (из вашего скрипта)
-        if ($request->isMethod('post')) {
-            DB::table('cabling_journal')->insert([
-                'device_id'   => $request->input('device_id'),
-                'port_id'     => $request->input('port_id'),
-                'cable_type'  => $request->input('cable_type'),
+        // 1. Обработка POST (Сохранение нового шкафа/рэка из вашего скрипта)
+        if ($request->isMethod('post') && $request->has('add_rack')) {
+            DB::table('custom_racks')->insert([
+                'name'        => $request->input('name'),
+                'location_id' => $request->input('location_id'),
+                'units'       => $request->input('units', 42),
                 'description' => $request->input('description'),
-                // 'created_at' => now(), // Раскомментируйте, если добавили это поле в БД
             ]);
             
-            session()->flash('status', 'Запись в кабельный журнал успешно добавлена!');
+            session()->flash('status', 'Стойка успешно добавлена!');
         }
 
-        // 2. Получение данных (Аналог вашего SQL запроса с JOIN)
-        // Мы соединяем записи журнала с таблицами LibreNMS, чтобы получить имена
-        $cables = DB::table('cabling_journal')
-            ->leftJoin('devices', 'cabling_journal.device_id', '=', 'devices.device_id')
-            ->leftJoin('ports', 'cabling_journal.port_id', '=', 'ports.port_id')
-            ->select(
-                'cabling_journal.*', 
-                'devices.hostname as device_name', 
-                'ports.ifName as port_name'
-            )
-            ->orderBy('cabling_journal.id', 'desc')
+        // 2. Получение списка шкафов с привязкой к локациям (Ваш SQL с LEFT JOIN)
+        // SQL: SELECT r.*, l.location FROM custom_racks r LEFT JOIN locations l ON r.location_id = l.id
+        $racks = DB::table('custom_racks as r')
+            ->leftJoin('locations as l', 'r.location_id', '=', 'l.id')
+            ->select('r.*', 'l.location as location_name')
+            ->orderBy('r.name', 'asc')
             ->get();
 
-        // 3. Данные для выпадающих списков (чтобы удобно выбирать в форме)
-        $devices = DB::table('devices')->select('device_id', 'hostname')->orderBy('hostname')->get();
+        // 3. Получение списка локаций для выпадающего списка в форме
+        $locations = DB::table('locations')
+            ->select('id', 'location')
+            ->orderBy('location')
+            ->get();
 
         return [
-            'cables'  => $cables,
-            'devices' => $devices,
-            'title'   => 'Кабельный журнал'
+            'racks'     => $racks,
+            'locations' => $locations,
+            'title'     => 'Управление кабельным журналом (Стойки)'
         ];
     }
 }
