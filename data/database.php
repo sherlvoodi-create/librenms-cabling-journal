@@ -135,6 +135,19 @@ return array (
       'unit_count' => 1,
       'start_unit' => 1,
     ),
+    7 =>
+    array (
+      'id' => 7,
+      'rack_id' => 1,
+      'name' => 'Client_Patch_1',
+      'type' => 'panel',
+      'model' => 'HyperLine Cat.5E',
+      'distance_from_rack' => 0,
+      'note' => NULL,
+      'unit_count' => 1,
+      'start_unit' => 4,
+      'port_count' => '24',
+    ),
   ),
   'custom_panel_ports' =>
   array (
@@ -147,7 +160,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Uplink to Core',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     2 =>
     array (
@@ -158,7 +171,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Reserved',
       'note' => 'Spare fiber',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     4 =>
     array (
@@ -169,7 +182,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 1',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     5 =>
     array (
@@ -180,7 +193,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 2',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     6 =>
     array (
@@ -191,7 +204,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 3',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     7 =>
     array (
@@ -202,7 +215,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 4',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     8 =>
     array (
@@ -213,7 +226,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 5',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     9 =>
     array (
@@ -224,7 +237,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 6',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     10 =>
     array (
@@ -235,7 +248,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 7',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     11 =>
     array (
@@ -246,7 +259,7 @@ return array (
       'tube_color' => 'Red',
       'status' => 'Active',
       'note' => 'Волокно 8',
-      'type' => 'fiber,
+      'type' => 'fiber',
     ),
     12 =>
     array (
@@ -257,7 +270,271 @@ return array (
       'tube_color' => 'Green',
       'status' => 'Active',
       'note' => 'Волокно 9',
-      'type' => 'fiber,
+      'type' => 'fiber',
+    ),
+    13 =>
+    array (
+      'id' => 13,
+      'panel_id' => 7,
+      'port_number' => 1,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    14 =>
+    array (
+      'id' => 14,
+      'panel_id' => 7,
+      'port_number' => 2,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    15 =>
+    array (
+      'id' => 15,
+      'panel_id' => 7,
+      'port_number' => 3,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    16 =>
+    array (
+      'id' => 16,
+      'panel_id' => 7,
+      'port_number' => 4,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    17 =>
+    array (
+      'id' => 17,
+      'panel_id' => 7,
+      'port_number' => 5,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    18 =>
+    array (
+      'id' => 18,
+      'panel_id' => 7,
+      'port_number' => 6,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    19 =>
+    array (
+      'id' => 19,
+      'panel_id' => 7,
+      'port_number' => 7,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    20 =>
+    array (
+      'id' => 20,
+      'panel_id' => 7,
+      'port_number' => 8,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    21 =>
+    array (
+      'id' => 21,
+      'panel_id' => 7,
+      'port_number' => 9,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    22 =>
+    array (
+      'id' => 22,
+      'panel_id' => 7,
+      'port_number' => 10,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    23 =>
+    array (
+      'id' => 23,
+      'panel_id' => 7,
+      'port_number' => 11,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    24 =>
+    array (
+      'id' => 24,
+      'panel_id' => 7,
+      'port_number' => 12,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    25 =>
+    array (
+      'id' => 25,
+      'panel_id' => 7,
+      'port_number' => 13,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    26 =>
+    array (
+      'id' => 26,
+      'panel_id' => 7,
+      'port_number' => 14,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    27 =>
+    array (
+      'id' => 27,
+      'panel_id' => 7,
+      'port_number' => 15,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    28 =>
+    array (
+      'id' => 28,
+      'panel_id' => 7,
+      'port_number' => 16,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    29 =>
+    array (
+      'id' => 29,
+      'panel_id' => 7,
+      'port_number' => 17,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    30 =>
+    array (
+      'id' => 30,
+      'panel_id' => 7,
+      'port_number' => 18,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    31 =>
+    array (
+      'id' => 31,
+      'panel_id' => 7,
+      'port_number' => 19,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    32 =>
+    array (
+      'id' => 32,
+      'panel_id' => 7,
+      'port_number' => 20,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    33 =>
+    array (
+      'id' => 33,
+      'panel_id' => 7,
+      'port_number' => 21,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    34 =>
+    array (
+      'id' => 34,
+      'panel_id' => 7,
+      'port_number' => 22,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    35 =>
+    array (
+      'id' => 35,
+      'panel_id' => 7,
+      'port_number' => 23,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
+    ),
+    36 =>
+    array (
+      'id' => 36,
+      'panel_id' => 7,
+      'port_number' => 24,
+      'fiber_color' => NULL,
+      'tube_color' => NULL,
+      'status' => 'Active',
+      'note' => '',
+      'type' => 'panel',
     ),
   ),
   'custom_links' =>
