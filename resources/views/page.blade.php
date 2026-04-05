@@ -211,7 +211,7 @@
     </div>
     <div class="col-md-2">
         <label>Технология:</label>
-        <select name="panel_type" id="panel_type" class="form-control">
+        <select name="panel_tech" id="panel_type" class="form-control">
             <option value="panel">Медная (UTP)</option>
             <option value="fiber">Оптическая (LC\SC)</option>
             <option value="socket220">Блок розеток</option>
