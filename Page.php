@@ -45,7 +45,7 @@ class Page extends PageHook
     $request = request(); // получаем объект запроса Laravel
     $selectedLocationId = $request->get('location_id', 0);
     $selectedRackId = $request->get('rack_id', 0);
-
+//    $selectedLocationId = 0;
     // Загружаем базу данных
     $data = file_exists($this->dbPath) ? include $this->dbPath : ['custom_racks' => [], 'custom_panels' => [], 'custom_rack_devices' => []];
     $this->log_it($request->post());
@@ -324,7 +324,7 @@ elseif ($action === 'delete_item') {
 
         $occupiedUnits[$startUnit] = [
             'type'       => 'device',
-            'name'       => $hostname ?? "Device ID: $device_id",
+            'name'       => $hostname ?? 'Device ID: '.$device_id,
             'id'         => $device_id,
             'unit_count' => $unitCount,
             'ports'      => $ports,
@@ -340,7 +340,7 @@ elseif ($action === 'delete_item') {
             'name'       => $p['name'] ?? 'Панель',
             'model'      => $p['model'] ?? '',
             'id'         => $p['id'],
-            'unit_count' => $p['unit_count'] ?? 1,
+            'unit_count' => $p['unit_count'] ?? '1',
             'ports'      => $p['port_count'] ?? '',
         ];
     }
