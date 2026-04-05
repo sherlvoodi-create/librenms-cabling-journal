@@ -169,7 +169,7 @@ clearstatcache(true, $this->dbPath);
         }
     } else { // passive panel
         $name = $request->input('name');
-        $type = $request->input('panel_type', 'panel');
+        $type = $request->input('panel_tech', 'panel');
         $model = $request->input('model', '');
         $port_count = $request->input('port_count', 0);
         if ($name && $rack_id) {
