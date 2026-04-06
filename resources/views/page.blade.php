@@ -229,9 +229,9 @@ function toggleForm(formId) {
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label>Начальный юнит (U):</label>
+                    <label>Начальный юнит Front(U):</label>
                     <select name="start_unit" id="start_unit" class="form-control" required>
-                        @foreach($free_units as $unit)
+                        @foreach($free_units_front as $unit)
                             <option value="{{ $unit }}">{{ $unit }}</option>
                         @endforeach
                     </select>
@@ -243,6 +243,14 @@ function toggleForm(formId) {
                 <div class="col-md-3">
                     <label>Примечание:</label>
                     <input type="text" name="note" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label>Сторона шкафа:</label>
+                    {{-- Добавляем id и onchange --}}
+                    <select name="rack_side" id="rack_side_select" class="form-control" onchange="updateUnitList(this.value)">
+                        <option value="front" selected>Front</option>
+                        <option value="back">Back</option>
+                    </select>
                 </div>
             </div>
             <div id="device_select" class="row" style="margin-top:10px;">
@@ -293,17 +301,23 @@ function toggleForm(formId) {
 
 {{-- Контейнер шкафа --}}
 <div class="rack-container" style="background:#fff; border:1px solid #ccc; max-width: 100%; overflow-x: auto;">
-    @for ($u = 1; $u <= $max_units; $u++)
-        @php
-            $item = $occupied_units[$u] ?? null;
-            $hasItem = !is_null($item);
-            $isEmpty = !$hasItem;
-            $unitClass = $isEmpty ? 'empty-u' : ($item['type'] == 'device' ? 'occupied' : 'panel');
-        @endphp
-        <div class="rack-unit {{ $unitClass }}" data-unit="{{ $u }}">
-    <div class="unit-num">{{ $u }}</div>
-    <div class="unit-content">
-        @if($hasItem)
+    <div class="rack-container" style="display: flex; flex-wrap: wrap; gap: 20px;">
+    {{-- Левая колонка (Front) --}}
+    <div class="rack-column" style="flex: 1; min-width: 250px;">
+        <div class="panel panel-default" style="margin-bottom: 5px;">
+            <div class="panel-heading text-center"><strong>Передняя сторона (Front)</strong></div>
+        </div>
+        @for ($u = 1; $u <= $max_units; $u++)
+            @php
+                $item = $occupied_units_front[$u] ?? null;
+                $hasItem = !is_null($item);
+                $isEmpty = !$hasItem;
+                $unitClass = $isEmpty ? 'empty-u' : ($item['type'] == 'device' ? 'occupied' : 'panel');
+            @endphp
+            <div class="rack-unit {{ $unitClass }}" data-unit="{{ $u }}">
+                <div class="unit-num">{{ $u }}</div>
+                <div class="unit-content">
+@if($hasItem)
             @if($item['type'] == 'device')
                 {{-- Блок просмотра устройства --}}
                 <div id="device-view-{{ $item['id'] }}-{{ $u }}" class="device-view">
@@ -365,6 +379,10 @@ function toggleForm(formId) {
                             <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
                         </div>
                         <div style="margin-top: 5px;">
+                                                        <select name="rack_side" class="form-control">
+                                    <option value="front"  selected>Front</option>
+                                    <option value="back">Back</option>
+                                </select>
                             <label>Новый начальный юнит:</label>
                             <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
                                 <option value="{{ $u }}" selected>{{ $u }}</option>
@@ -431,6 +449,10 @@ function toggleForm(formId) {
                             <input type="text" name="note" class="form-control input-sm" style="width: 100%; margin-top: 5px;" value="{{ htmlspecialchars($item['note']) }}" placeholder="Примечание">
                         </div>
                         <div style="margin-top: 5px;">
+                                                        <select name="rack_side" class="form-control">
+                                    <option value="front"  selected>Front</option>
+                                    <option value="back">Back</option>
+                                </select>
                             <label>Начальный юнит:</label>
                             <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
                                 <option value="{{ $u }}" selected>{{ $u }}</option>
@@ -478,6 +500,279 @@ function toggleForm(formId) {
                             <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
                         </div>
                         <div style="margin-top: 5px;">
+                                                        <select name="rack_side" class="form-control">
+                                    <option value="front"  selected>Front</option>
+                                    <option value="back">Back</option>
+                                </select>
+                            <label>Новый начальный юнит:</label>
+                            <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
+                                <option value="{{ $u }}" selected>{{ $u }}</option>
+                                @foreach($free_units as $su)
+                                    <option value="{{ $su }}" >{{ $su }}</option>
+                                @endforeach
+                            </select>
+                            <span class="text-muted small"> (высота: {{ $item['unit_count'] }}U)</span>
+                        </div>
+                    </form>
+                </div>
+                    
+            @elseif($item['type'] == 'UPS')
+               {{-- Блок просмотра устройства --}}
+                <div id="device-view-{{ $item['id'] }}-{{ $u }}" class="device-view">
+                        <div class="item-title">
+                               <i class="fa fa-battery-full" style="font-size: 1.3em; color: #2ecc71;"></i><strong>{{ $item['name'] }}</strong>
+                                <a href="javascript:void(0)" onclick="editDevice({{ $item['id'] }}, {{ $u }})" class="text-info pull-right" style="margin-left: 10px;" title="Переместить устройство"><i class="fa fa-arrows"></i></a>
+                                <a href="javascript:void(0)" onclick="confirmDeleteItem({{ $selected_rack }}, {{ $u }}, {{ $selected_location }})" class="text-danger pull-right" style="margin-left: 10px;" title="Удалить из шкафа"><i class="fa fa-trash-o"></i></a>
+                        </div>
+                        <div class="text-muted small">{{ $item['model'] }}</div>
+                        <div class="panel-note small text-muted">{{ $item['note'] }}</div>
+
+                </div>
+                {{-- Блок редактирования устройства (только перемещение) --}}
+                <div id="device-edit-{{ $item['id'] }}-{{ $u }}" style="display:none;">
+                    <form method="GET" action="{{ url('plugin/CablingJournal') }}">
+                        <input type="hidden" name="action" value="edit_panel">
+                        <input type="hidden" name="rack_id" value="{{ $selected_rack }}">
+                        <input type="hidden" name="panel_id" value="{{ $item['id'] }}">
+                        <input type="hidden" name="name" value="{{ $item['name'] }}">
+                        <input type="hidden" name="model" value="{{ $item['model'] }}">
+                        <input type="hidden" name="note" value="{{ $item['note'] }}">
+                        <input type="hidden" name="location_id" value="{{ $selected_location }}">
+                        <input type="hidden" name="old_unit" value="{{ $u }}">
+                        <div class="item-title">
+                            <strong>Перемещение {{ $item['name'] }}</strong>
+                            <button type="submit" class="btn btn-success btn-xs pull-right" style="margin-left: 10px;"><i class="fa fa-save"></i> Сохранить</button>
+                            <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
+                        </div>
+                        <div style="margin-top: 5px;">                                
+                            <select name="rack_side" class="form-control">
+                                    <option value="front"  selected>Front</option>
+                                    <option value="back">Back</option>
+                                </select>
+                            <label>Новый начальный юнит:</label>
+                            <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
+                                <option value="{{ $u }}" selected>{{ $u }}</option>
+                                @foreach($free_units as $su)
+                                    <option value="{{ $su }}" >{{ $su }}</option>
+                                @endforeach
+                            </select>
+                            <span class="text-muted small"> (высота: {{ $item['unit_count'] }}U)</span>
+                        </div>
+                    </form>
+                </div>
+            @else
+                <div class="text-muted">[Неизвестный тип панели]</div>
+            @endif
+        @else
+            <span class="text-muted">— пусто —</span>
+        @endif
+                </div>
+            </div>
+        @endfor
+    </div>
+
+    {{-- Правая колонка (Back) --}}
+    <div class="rack-column" style="flex: 1; min-width: 250px;">
+        <div class="panel panel-default" style="margin-bottom: 5px;">
+            <div class="panel-heading text-center"><strong>Задняя сторона (Back)</strong></div>
+        </div>
+        @for ($u = 1; $u <= $max_units; $u++)
+            @php
+                $item = $occupied_units_back[$u] ?? null;
+                $hasItem = !is_null($item);
+                $isEmpty = !$hasItem;
+                $unitClass = $isEmpty ? 'empty-u' : ($item['type'] == 'device' ? 'occupied' : 'panel');
+            @endphp
+            <div class="rack-unit {{ $unitClass }}" data-unit="{{ $u }}">
+                <div class="unit-num">{{ $u }}</div>
+                <div class="unit-content">
+                    @if($hasItem)
+            @if($item['type'] == 'device')
+                {{-- Блок просмотра устройства --}}
+                <div id="device-view-{{ $item['id'] }}-{{ $u }}" class="device-view">
+                    <div class="item-title">
+                        <a href="/device/device={{ $item['id'] }}/" target="_blank"><strong>{{ $item['name'] }}</strong></a>
+                        <div class="text-muted small">{{ $item['model'] }}</div>
+                        <a href="javascript:void(0)" onclick="editDevice({{ $item['id'] }}, {{ $u }})" class="text-info pull-right" style="margin-left: 10px;" title="Переместить устройство"><i class="fa fa-arrows"></i></a>
+                        <a href="javascript:void(0)" onclick="confirmDeleteItem({{ $selected_rack }}, {{ $u }}, {{ $selected_location }})" class="text-danger pull-right" style="margin-left: 10px;" title="Удалить из шкафа"><i class="fa fa-trash-o"></i></a>
+                    </div>
+                    @if(!empty($item['ports']))
+                        @php
+                            $row1 = array_slice($item['ports'], 0, 24);
+                            $row2 = array_slice($item['ports'], 24, 24);
+                            $sfp  = array_slice($item['ports'], 48);
+                        @endphp
+                        <div style="display: flex; align-items: flex-end; gap: 10px; margin-top: 6px;">
+                            <div class="port-grid" style="background: #222; padding: 6px; border-radius: 4px;">
+                                <div style="display: flex; flex-direction: column; gap: 3px;">
+                                    @foreach ([$row1, $row2] as $row)
+                                        <div style="display: flex; gap: 2px;">
+                                            @foreach ($row as $p)
+                                                @php
+                                                    $st = ($p['ifOperStatus'] == 'up') ? 'port-up' : 'port-down';
+                                                    $port_url = "/device/device={$item['id']}/tab=port/port={$p['port_id']}/";
+                                                    $full_title = !empty($p['ifAlias']) ? htmlspecialchars($p['ifAlias']) : $p['ifName'];
+                                                @endphp
+                                                <a href="{{ $port_url }}" target="_blank" class="port-box {{ $st }}" data-tip="{{ $full_title }}"></a>
+                                            @endforeach
+                                        </div>
+                                    @endforeach
+                                </div>
+                                @if(!empty($sfp))
+                                    <div class="sfp-block" style="background: #222; padding: 6px; border-radius: 4px; display: flex; gap: 3px; align-items: flex-end;">
+                                        @foreach ($sfp as $p)
+                                            @php
+                                                $st = ($p['ifOperStatus'] == 'up') ? 'port-up' : 'port-down';
+                                                $port_url = "/device/device={$item['id']}/tab=port/port={$p['port_id']}/";
+                                                $full_title = !empty($p['ifAlias']) ? htmlspecialchars($p['ifAlias']) : $p['ifName'];
+                                            @endphp
+                                            <a href="{{ $port_url }}" target="_blank" class="port-box {{ $st }}" data-tip="{{ $full_title }} (SFP)"></a>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                </div>
+                {{-- Блок редактирования устройства (только перемещение) --}}
+                <div id="device-edit-{{ $item['id'] }}-{{ $u }}" style="display:none;">
+                    <form method="GET" action="{{ url('plugin/CablingJournal') }}">
+                        <input type="hidden" name="action" value="edit_panel">
+                        <input type="hidden" name="rack_id" value="{{ $selected_rack }}">
+                        <input type="hidden" name="panel_id" value="{{ $item['id'] }}">
+                        <input type="hidden" name="location_id" value="{{ $selected_location }}">
+                        <input type="hidden" name="old_unit" value="{{ $u }}">
+                        <div class="item-title">
+                            <strong>Перемещение {{ $item['name'] }}</strong>
+                            <button type="submit" class="btn btn-success btn-xs pull-right" style="margin-left: 10px;"><i class="fa fa-save"></i> Сохранить</button>
+                            <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
+                        </div>
+                        <div style="margin-top: 5px;">
+                                                            <select name="rack_side" class="form-control">
+                                    <option value="front" >Front</option>
+                                    <option value="back" selected>Back</option>
+                                </select>
+                            <label>Новый начальный юнит:</label>
+                            <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
+                                <option value="{{ $u }}" selected>{{ $u }}</option>
+                                @foreach($free_units as $su)
+                                    <option value="{{ $su }}" >{{ $su }}</option>
+                                @endforeach
+                            </select>
+                            <span class="text-muted small"> (высота: {{ $item['unit_count'] }}U)</span>
+                        </div>
+                    </form>
+                </div>
+
+            @elseif($item['type'] == 'panel' || $item['type'] == 'fiber')
+                {{-- Блок просмотра панели --}}
+                <div id="panel-view-{{ $item['id'] }}-{{ $u }}" class="panel-view">
+                    <div class="item-title">
+                        <strong>{{ $item['name'] }}</strong>
+                        <a href="javascript:void(0)" onclick="editPanel({{ $item['id'] }}, {{ $u }})" class="text-info pull-right" style="margin-left: 10px;" title="Редактировать панель"><i class="fa fa-pencil"></i></a>
+                        <a href="javascript:void(0)" onclick="confirmDeleteItem({{ $selected_rack }}, {{ $u }}, {{ $selected_location }})" class="text-danger pull-right" style="margin-left: 10px;" title="Удалить из шкафа"><i class="fa fa-trash-o"></i></a>
+                    </div>
+                    <div class="text-muted small">{{ $item['model'] }}</div>
+                    <div class="panel-note small text-muted">{{ $item['note'] }}</div>
+                    @if(!empty($item['ports']))
+                        <div class="panel-ports" style="margin-top: 6px;">
+                            @php $portsChunked = array_chunk($item['ports'], 24); @endphp
+                            @foreach($portsChunked as $chunk)
+                                <div style="display: flex; gap: 3px; margin-bottom: 3px;">
+                                    @foreach($chunk as $port)
+                                        @php
+                                            $tooltip = "Порт {$port['port_number']}";
+                                            if (!empty($port['note'])) $tooltip .= ": {$port['note']}";
+                                            if (!empty($port['fiber_color'])) $tooltip .= " (Цвет: {$port['fiber_color']})";
+                                            $bgColor = !empty($port['fiber_color']) ? $port['fiber_color'] : '#555';
+                                            $border = (in_array($bgColor, ['White', 'Yellow', 'Lime', 'Cyan'])) ? '1px solid #888' : '1px solid #000';
+                                        @endphp
+                                        <div class="port-box" style="background: {{ $bgColor }}; border: {{ $border }};" data-tip="{{ $tooltip }}"></div>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-muted">[Нет портов]</div>
+                    @endif
+                    <div class="text-muted small" style="margin-top: 4px;">
+                        <a href="{{ url('plugin/CablingJournal?panel_id='.$item['id'].'&rack_id='.$selected_rack.'&location_id='.$selected_location) }}" class="btn btn-xs btn-default"><i class="fa fa-pencil"></i> Редактировать порты</a>
+                    </div>
+                </div>
+                {{-- Блок редактирования панели --}}
+                <div id="panel-edit-{{ $item['id'] }}-{{ $u }}" style="display:none;">
+                    <form method="GET" action="{{ url('plugin/CablingJournal') }}">
+                        <input type="hidden" name="action" value="edit_panel">
+                        <input type="hidden" name="panel_id" value="{{ $item['id'] }}">
+                        <input type="hidden" name="rack_id" value="{{ $selected_rack }}">
+                        <input type="hidden" name="location_id" value="{{ $selected_location }}">
+                        <div class="item-title">
+                            <input type="text" name="name" class="form-control input-sm" style="width: auto; display: inline-block;" value="{{ htmlspecialchars($item['name']) }}" required>
+                            <button type="submit" class="btn btn-success btn-xs pull-right" style="margin-left: 10px;"><i class="fa fa-save"></i> Сохранить</button>
+                            <a href="javascript:void(0)" onclick="cancelEditPanel({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
+                        </div>
+                        <div>
+                            <input type="text" name="model" class="form-control input-sm" style="width: 200px; margin-top: 5px;" value="{{ htmlspecialchars($item['model']) }}" placeholder="Модель">
+                        </div>
+                        <div>
+                            <input type="text" name="note" class="form-control input-sm" style="width: 100%; margin-top: 5px;" value="{{ htmlspecialchars($item['note']) }}" placeholder="Примечание">
+                        </div>
+                        <div style="margin-top: 5px;">
+                                                            <select name="rack_side" class="form-control">
+                                    <option value="front" >Front</option>
+                                    <option value="back" selected>Back</option>
+                                </select>
+                            <label>Начальный юнит:</label>
+                            <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
+                                <option value="{{ $u }}" selected>{{ $u }}</option>
+                                @foreach($free_units as $su)
+                                    <option value="{{ $su }}" >{{ $su }}</option>
+                                @endforeach
+                            </select>
+                            <span class="text-muted small"> (высота: {{ $item['unit_count'] }}U)</span>
+                        </div>
+                    </form>
+                </div>
+
+            @elseif($item['type'] == 'socket220')
+                {{-- Блок просмотра устройства --}}
+                <div id="device-view-{{ $item['id'] }}-{{ $u }}" class="device-view">
+                        <div class="item-title">
+                               <i class="fa fa-bolt" style="color: #f39c12; margin-right: 5px;"></i><strong>{{ $item['name'] }}</strong>
+                                <a href="javascript:void(0)" onclick="editDevice({{ $item['id'] }}, {{ $u }})" class="text-info pull-right" style="margin-left: 10px;" title="Переместить устройство"><i class="fa fa-arrows"></i></a>
+                                <a href="javascript:void(0)" onclick="confirmDeleteItem({{ $selected_rack }}, {{ $u }}, {{ $selected_location }})" class="text-danger pull-right" style="margin-left: 10px;" title="Удалить из шкафа"><i class="fa fa-trash-o"></i></a>
+                        </div>
+                        <div class="text-muted small">{{ $item['model'] }}</div>
+                        <div class="panel-note small text-muted">{{ $item['note'] }}</div>
+                        <div style="display: flex; gap: 8px; margin-top: 5px;">
+                            @for($i=1; $i<=7; $i++)
+                                <div style="width: 30px; height: 30px; background: #eee; border: 1px solid #aaa; border-radius: 4px; text-align: center; line-height: 28px;">
+                    <i class="fa fa-plug" style="color: #555;"></i>
+                </div>
+                            @endfor
+                        </div>
+                </div>
+                {{-- Блок редактирования устройства (только перемещение) --}}
+                <div id="device-edit-{{ $item['id'] }}-{{ $u }}" style="display:none;">
+                    <form method="GET" action="{{ url('plugin/CablingJournal') }}">
+                        <input type="hidden" name="action" value="edit_panel">
+                        <input type="hidden" name="rack_id" value="{{ $selected_rack }}">
+                        <input type="hidden" name="panel_id" value="{{ $item['id'] }}">
+                        <input type="hidden" name="name" value="{{ $item['name'] }}">
+                        <input type="hidden" name="model" value="{{ $item['model'] }}">
+                        <input type="hidden" name="note" value="{{ $item['note'] }}">
+                        <input type="hidden" name="location_id" value="{{ $selected_location }}">
+                        <input type="hidden" name="old_unit" value="{{ $u }}">
+                        <div class="item-title">
+                            <strong>Перемещение {{ $item['name'] }}</strong>
+                            <button type="submit" class="btn btn-success btn-xs pull-right" style="margin-left: 10px;"><i class="fa fa-save"></i> Сохранить</button>
+                            <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
+                        </div>
+                        <div style="margin-top: 5px;">
+                                                            <select name="rack_side" class="form-control">
+                                    <option value="front" >Front</option>
+                                    <option value="back" selected>Back</option>
+                                </select>
                             <label>Новый начальный юнит:</label>
                             <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
                                 <option value="{{ $u }}" selected>{{ $u }}</option>
@@ -519,6 +814,11 @@ function toggleForm(formId) {
                             <a href="javascript:void(0)" onclick="cancelEditDevice({{ $item['id'] }}, {{ $u }})" class="text-muted pull-right" style="margin-left: 10px;"><i class="fa fa-times"></i> Отмена</a>
                         </div>
                         <div style="margin-top: 5px;">
+                            <label>Сторона шкафа:</label>
+                                <select name="rack_side" class="form-control">
+                                    <option value="front" >Front</option>
+                                    <option value="back" selected>Back</option>
+                                </select>
                             <label>Новый начальный юнит:</label>
                             <select name="new_start_unit" class="form-control input-sm" style="width: auto; display: inline-block;">
                                 <option value="{{ $u }}" selected>{{ $u }}</option>
@@ -536,11 +836,35 @@ function toggleForm(formId) {
         @else
             <span class="text-muted">— пусто —</span>
         @endif
+                </div>
+            </div>
+        @endfor
     </div>
 </div>
-    @endfor
 </div>
+<script>
+    // Передаем массивы из PHP в JS
+    const freeUnits = {
+        front: @json($free_units_front),
+        back: @json($free_units_back)
+    };
 
+    function updateUnitList(side) {
+        const unitSelect = document.getElementById('start_unit');
+        const units = freeUnits[side] || [];
+        
+        // Очищаем текущий список
+        unitSelect.innerHTML = '';
+        
+        // Заполняем новыми значениями
+        units.forEach(unit => {
+            const option = document.createElement('option');
+            option.value = unit;
+            option.textContent = unit;
+            unitSelect.appendChild(option);
+        });
+    }
+</script>
 <script>
     function editDevice(deviceId, unit) {
     document.getElementById('device-view-' + deviceId + '-' + unit).style.display = 'none';
