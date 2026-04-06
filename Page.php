@@ -145,6 +145,7 @@ class Page extends PageHook
     $port_count = (int)$request->input('port_count', 0);
     $note = $request->input('note', '');
     $device_id = (int)$request->input('device_id', 0);
+    $rack_side = $request->input('rack_side', 'front'); // по умолчанию front
 
     if($panel_type == 'passive') {$panel_type = $request->input('panel_tech'); $device_id = 0;}
         // Проверка обязательных полей
@@ -175,7 +176,8 @@ class Page extends PageHook
                 'unit_count' => $unit_count,
                 'start_unit' => $start_unit,
                 'port_count' => $port_count,
-                'device_id' => $device_id
+                'device_id' => $device_id,
+                'rack_side' => $rack_side,
             ];
             // Генерация портов для пассивной панели
 
@@ -217,7 +219,6 @@ class Page extends PageHook
     exit;
     }
 elseif ($action === 'edit_panel') {
-    $this->log_it("edit_panel:");
     
     $panel_id = (int)$request->input('panel_id');
     $rack_id = (int)$request->input('rack_id');
@@ -226,6 +227,7 @@ elseif ($action === 'edit_panel') {
     $new_model = trim($request->input('model', ''));
     $new_note = trim($request->input('note', ''));
     $new_start_unit = (int)$request->input('new_start_unit', 0);
+    $rack_side = $request->input('rack_side', 'front'); // по умолчанию front
     
 
     // Загружаем данные
@@ -248,8 +250,7 @@ elseif ($action === 'edit_panel') {
         $new_model = $device->sysDescr;
     }
 
-    $this->log_it("custom_panels: ".$panel_id);
-    $this->log_it($panel);
+
     // Валидация имени
     if (empty($new_name)) {
         session()->flash('error', 'Имя панели не может быть пустым');
@@ -276,7 +277,7 @@ elseif ($action === 'edit_panel') {
 
     // Проверка конфликта с другими панелями и устройствами
     $conflict = false;
-    // Панели
+    // Панели  
     foreach ($data['custom_panels'] as $id => $p) {
         if ($id == $panel_id) continue;
         if ($p['rack_id'] != $rack_id) continue;
@@ -288,14 +289,14 @@ elseif ($action === 'edit_panel') {
         
         $p_end = $p_start + ($p['unit_count'] ?? 1) - 1;
         $new_end = $new_start_unit + $unit_count - 1;
-        if (($new_start_unit >= $p_start && $new_start_unit <= $p_end) || ($new_end >= $p_start && $new_end <= $p_end) ) {
+        if (($new_start_unit >= $p_start && $new_start_unit <= $p_end && $p['rack_side'] == $rack_side) || ($new_end >= $p_start && $new_end <= $p_end  && $p['rack_side'] == $rack_side) ) {
             $conflict = true;
             break;
         }
     }
 
     if ($conflict) {
-        session()->flash('error', 'Конфликт: новый начальный юнит занят другим оборудованием');
+        session()->flash('error', 'Конфликт: новый юнит занят другим оборудованием');
         session()->save();
         header("Location: " . url("plugin/CablingJournal?location_id=$location_id&rack_id=$rack_id"));
         exit;
@@ -306,6 +307,7 @@ elseif ($action === 'edit_panel') {
     $panel['model'] = $new_model;
     $panel['note'] = $new_note;
     $panel['start_unit'] = $new_start_unit;
+    $panel['rack_side'] = $rack_side;
 
     // Сохраняем данные
     $code = "<?php\nreturn " . var_export($data, true) . ";";
@@ -449,8 +451,9 @@ elseif ($action === 'update_port_note') {
         }
         $unit = $p['start_unit'] ?? 1;
 	    // Получаем порты для этой панели из custom_panel_ports
-    
-        $occupiedUnits[$unit] = [
+        $side = $p['rack_side'] ?? 'front';
+    if($side == 'front'){
+        $occupiedUnits_Front[$unit] = [
             'type'       => $p['type'],
             'name'       => $p['name'] ?? 'Панель',
             'model'      => $p['model'] ?? '',
@@ -458,13 +461,28 @@ elseif ($action === 'update_port_note') {
             'unit_count' => $p['unit_count'] ?? '1',
 	        'ports'      => $panelPorts,
             'port_count'      => $p['port_count'] ?? '',
-        ];
+            'rack_side'  => $p['rack_side'],
+        ];}
+    else{$occupiedUnits_Back[$unit] = [
+            'type'       => $p['type'],
+            'name'       => $p['name'] ?? 'Панель',
+            'model'      => $p['model'] ?? '',
+            'id'         => $p['id'],
+            'unit_count' => $p['unit_count'] ?? '1',
+	        'ports'      => $panelPorts,
+            'port_count'      => $p['port_count'] ?? '',
+            'rack_side'  => $p['rack_side'],
+        ];}    
     }
     // Строим список свободных юнитов (для выпадающего списка)
-$freeUnits = [];
+$freeUnitsFront = [];
+$freeUnitsBack = [];
 for ($u = 1; $u <= $maxUnits; $u++) {
-    if (!isset($occupiedUnits[$u])) {
-        $freeUnits[] = $u;
+    if (!isset($occupiedUnits_Front[$u])) {
+        $freeUnitsFront[] = $u; 
+    }
+    if(!isset($occupiedUnits_Back[$u])) {
+        $freeUnitsBack[] = $u; 
     }
 }
     $currentLocation = DB::table('locations')->where('id', $selectedLocationId)->first();
@@ -474,12 +492,14 @@ for ($u = 1; $u <= $maxUnits; $u++) {
         'selected_location' => $selectedLocationId,
         'selected_rack'     => $selectedRackId,
         'rack'              => $rack,
-        'occupied_units'    => $occupiedUnits,
+        'occupied_units_front'    => $occupiedUnits_Front,
+        'occupied_units_back'    => $occupiedUnits_Back,
         'max_units'         => $maxUnits,
         'location_name'     => $currentLocation->location ?? 'Неизвестно',
         'devices' => $devicesList,
         'selected_panel'     => $selectedPanelId,
-        'free_units' => $freeUnits
+        'free_units_front' => $freeUnitsFront,
+        'free_units_back' => $freeUnitsBack
     ];
     }
     else{
