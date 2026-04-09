@@ -2,6 +2,7 @@
 namespace App\Plugins\CablingJournal;
 
 use App\Plugins\Hooks\PageHook;
+use App\Models\Plugin;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,17 +44,39 @@ class Page extends PageHook
 {
 
     $request = request(); // получаем объект запроса Laravel
+    
+    // 2. Извлекаем массив настроек (LibreNMS хранит их в колонке settings)
+
+    $presetsRaw = Plugin::where('plugin_name', 'CablingJournal')->first()->settings['model_presets'] ?? '[]';
+    $presets = is_string($presetsRaw) ? json_decode($presetsRaw, true) : $presetsRaw;
+
     $selectedLocationId = $request->get('location_id', 0);
     $selectedRackId = $request->get('rack_id', 0);
     $selectedPanelId = $request->get('panel_id', 0);
     // Загружаем базу данных
-    $data = file_exists($this->dbPath) ? include $this->dbPath : ['custom_racks' => [], 'custom_panels' => [], 'custom_rack_devices' => []];
-    $this->log_it($request->post());
-    $this->log_it("GET:");
-    $this->log_it($request->all());
-    // --- ОБРАБОТКА действия ---
+    $data = file_exists($this->dbPath) ? include $this->dbPath : ['custom_racks' => [], 'custom_panels' => [], 'custom_panel_ports' => [], 'custom_links' => [], 'model_presets' => []];
+
+
+    //Режим учета кабелей
+    if ($request->has('m')) {
+
+        $locations = DB::table('locations')->orderBy('location', 'asc')->pluck('location', 'id')->toArray();
+        
+        return [
+            'mode' => 'cbl',
+            'custom_links' => $data['custom_links'],
+            'custom_racks' => $data['custom_racks'],
+            'custom_panels' => $data['custom_panels'],
+            'custom_panel_ports' => $data['custom_panel_ports'],
+            'locations' => $locations,
+            'presets' => $presets,
+        ];
+
+
+    }
+    // --- Режим учета шкафов \ ниш \ панелей ---
     if ($request->has('action')) {
-    $this->log_it("Action found: " . $request->input('action'));
+   
     $action = $request->input('action'); // add_rack, add_panel, add_device
 
     if ($action === 'add_rack') 
@@ -69,6 +92,8 @@ class Page extends PageHook
                 'location_id' => $location_id,
                 'name'        => $request->input('name'),
                 'floor'       => $request->input('floor'),
+                'room'        => $_GET['room'] ?? '',        // Новое поле
+                'coordinates' => $_GET['coordinates'] ?? '', // Новое поле
                 'units'       => (int) $request->input('units', 42),
                 'type'        => $request->input('type'),
                 'note'        => $request->input('note'),
@@ -86,6 +111,7 @@ class Page extends PageHook
             }
             clearstatcache(true, $this->dbPath);
             session()->flash('success', 'Шкаф успешно добавлен!');
+            session()->save();
             // Редиректим на ту же локацию, чтобы обновить список шкафов
             header("Location: ".url('plugin/CablingJournal?location_id=' . $location_id));
 
@@ -130,6 +156,7 @@ class Page extends PageHook
             clearstatcache(true, $this->dbPath);
 
             session()->flash('success', 'Шкаф и связанные элементы удалены.');
+            session()->save();
         }
 
     // Редирект на список шкафов этой локации
@@ -151,6 +178,7 @@ class Page extends PageHook
         // Проверка обязательных полей
     if ($start_unit <= 0 || $start_unit > $data['custom_racks'][$rack_id]['units']) {
         session()->flash('error', 'Юнит назначения - не существует');
+        session()->save();
         header("Location: " . url('plugin/CablingJournal?location_id=' . $location_id . '&rack_id=' . $rack_id));
         exit;
     }
@@ -159,7 +187,7 @@ class Page extends PageHook
         if($device->sysName == '') {$name = $device->hostname;} else {$name = $device->sysName;} 
         $model = $device->sysDescr;
     }
-    else {$model = $request->input('model',''); $name = $request->input('name','');}    
+    else {$model = $request->input('model_preset',''); $name = $request->input('name','');}    
         
         $port_count = $request->input('port_count', 0);
         if ($name && $rack_id) {
@@ -200,9 +228,11 @@ class Page extends PageHook
                 $data['custom_panel_ports'] = $panel_ports;
             }
             session()->flash('success', 'Панель добавлена в шкаф');
+            session()->save();
 
         } else {
             session()->flash('error', 'Ошибка: не заполнено имя панели');
+            session()->save();
         }
    
 
@@ -349,6 +379,7 @@ elseif ($action === 'delete_item') {
     clearstatcache(true, $this->dbPath);
 
     session()->flash('success', 'Элемент удалён из шкафа');
+    session()->save();
     header("Location: " . url('plugin/CablingJournal?location_id=' . $location_id . '&rack_id=' . $rack_id));
     exit;
 }
@@ -378,12 +409,150 @@ elseif ($action === 'update_port_note') {
         }
         clearstatcache(true, $this->dbPath);
         session()->flash('success', 'Порт обновлён');
+        session()->save();
     } else {
         session()->flash('error', 'Ошибка: порт не найден');
+        session()->save();
     }
 
     // Редирект обратно на страницу панели
     header("Location: " . url('plugin/CablingJournal?panel_id=' . $panel_id . '&rack_id=' . $rack_id . '&location_id=' . $location_id));
+    exit;
+}
+elseif ($action === 'update_all_ports') {
+    $panel_id = (int)$request->input('panel_id');
+    $rack_id = (int)$request->input('rack_id');
+    $location_id = (int)$request->input('location_id');
+    $notes = $request->input('note', []);
+    $statuses = $request->input('status', []);
+    $fiber_colors = $request->input('fiber_color', []);
+
+    $data = file_exists($this->dbPath) ? include $this->dbPath : [];
+
+    if (!isset($data['custom_panel_ports'])) {
+        $data['custom_panel_ports'] = [];
+    }
+
+    $updated = 0;
+    foreach ($notes as $port_id => $note) {
+        $port_id = (int)$port_id;
+        if (!isset($data['custom_panel_ports'][$port_id])) {
+            continue;
+        }
+        $data['custom_panel_ports'][$port_id]['note'] = trim($note);
+        if (isset($statuses[$port_id])) {
+            $data['custom_panel_ports'][$port_id]['status'] = $statuses[$port_id];
+        }
+        if (isset($fiber_colors[$port_id])) {
+            $data['custom_panel_ports'][$port_id]['fiber_color'] = $fiber_colors[$port_id];
+        }
+        $updated++;
+    }
+
+    if ($updated) {
+        $code = "<?php\nreturn " . var_export($data, true) . ";";
+        file_put_contents($this->dbPath, $code);
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($this->dbPath, true);
+        }
+        clearstatcache(true, $this->dbPath);
+        session()->flash('success', "Обновлено портов: $updated");
+        session()->save();
+    } else {
+        session()->flash('error', 'Нет портов для обновления');
+        session()->save();
+    }
+
+    header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+    exit;
+}
+elseif ($action === 'manage_cable') {
+    $action_type = $request->input('action_type');
+    $panel_id = (int)$request->input('panel_id');
+    $rack_id = (int)$request->input('rack_id');
+    $location_id = (int)$request->input('location_id');
+    $port_id = (int)$request->input('port_id');
+    $side = $request->input('side', 'A');
+
+    if ($action_type === 'link_existing') {
+        $cable_id = (int)$request->input('existing_cable_id');
+        if (!$cable_id) {
+            session()->flash('error', 'Не выбран кабель');session()->save();
+            header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+            exit;
+        }
+        $data = file_exists($this->dbPath) ? include $this->dbPath : [];
+        if (!isset($data['custom_links'][$cable_id])) {
+            session()->flash('error', 'Кабель не найден'); session()->save();
+            header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+            exit;
+        }
+        $link = &$data['custom_links'][$cable_id];
+        if ($side === 'A' && !empty($link['side_a_id'])) {
+            session()->flash('error', 'Сторона A кабеля уже занята портом ID: ' . $link['side_a_id']); session()->save();
+            header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+            exit;
+        }
+        if ($side === 'B' && !empty($link['side_b_id'])) {
+            session()->flash('error', 'Сторона B кабеля уже занята портом ID: ' . $link['side_b_id']);session()->save();
+            header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+            exit;
+        }
+        if ($side === 'A') {
+            $link['side_a_id'] = $port_id;
+            $link['side_a_type'] = 'Panel_Port';
+        } else {
+            $link['side_b_id'] = $port_id;
+            $link['side_b_type'] = 'Panel_Port';
+        }
+        $code = "<?php\nreturn " . var_export($data, true) . ";";
+        file_put_contents($this->dbPath, $code);
+        // очистка кеша...
+        session()->flash('success', 'Порт привязан к кабелю');
+        session()->save();
+    }
+    elseif ($action_type === 'create_and_link') {
+        $new_cable_name = trim($request->input('new_cable_name', ''));
+        $new_cable_type = trim($request->input('new_cable_type', ''));
+        $new_cable_count_cords = (int)$request->input('new_cable_count_cords', 0);
+        $new_cable_model = trim($request->input('new_cable_model', ''));
+        if (empty($new_cable_name)) {
+            session()->flash('error', 'Не указано имя кабеля');
+            header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
+            exit;
+        }
+        $data = file_exists($this->dbPath) ? include $this->dbPath : [];
+        $links = $data['custom_links'] ?? [];
+        $newId = empty($links) ? 1 : max(array_keys($links)) + 1;
+        $newLink = [
+            'id' => $newId,
+            'cbl_id' => $new_cable_name,
+            'name' => $new_cable_name,
+            'type' => $new_cable_type,
+            'count_cords' => $new_cable_count_cords,
+            'model' => $new_cable_model,
+            'status' => 'Active',
+            'note' => '',
+            'side_a_id' => 0,
+            'side_a_type' => '',
+            'side_b_id' => 0,
+            'side_b_type' => '',
+        ];
+        if ($side === 'A') {
+            $newLink['side_a_id'] = $port_id;
+            $newLink['side_a_type'] = 'Panel_Port';
+        } else {
+            $newLink['side_b_id'] = $port_id;
+            $newLink['side_b_type'] = 'Panel_Port';
+        }
+        $data['custom_links'][$newId] = $newLink;
+        $code = "<?php\nreturn " . var_export($data, true) . ";";
+        file_put_contents($this->dbPath, $code);
+        // очистка кеша...
+        session()->flash('success', 'Создан новый кабель и привязан к порту');
+        session()->save();
+    }
+    header("Location: " . url("plugin/CablingJournal?panel_id=$panel_id&rack_id=$rack_id&location_id=$location_id"));
     exit;
 }
         // Здесь можно добавить обработку add_panel и add_device позже
@@ -408,10 +577,11 @@ elseif ($action === 'update_port_note') {
         $currentLocation = DB::table('locations')->where('id', $selectedLocationId)->first();
         $racks = $data['custom_racks'] ?? [];
         return [
+            'presets' => $presets ?: [],
             'title' => 'Кабельный журнал',
             'selected_rack' => 0,
             'selected_location' => $selectedLocationId,
-        'selected_panel'     => $selectedPanelId,
+            'selected_panel'     => $selectedPanelId,
             'location_name' => $currentLocation->location ?? 'Неизвестно',
             'racks' => $racks,
         ];
@@ -434,13 +604,21 @@ elseif ($action === 'update_port_note') {
     foreach ($panels as $p) {
         if($p['device_id'] > 0) {
             $panelPorts = DB::table('ports')
-            ->where('device_id', $p['device_id'])
-            ->select('ifOperStatus', 'ifIndex', 'ifName', 'port_id', 'ifAlias')
-            ->orderBy('ifIndex', 'asc')
-            ->limit(52)
-            ->get()
-            ->map(function ($item) { return (array) $item; })
-            ->toArray();
+    ->where('device_id', $p['device_id'])
+    ->where(function ($query) {
+        $query->where('ifName', 'like', 'Port%')
+              ->orWhere('ifName', 'like', 'eth%')
+              ->orWhere('ifName', 'like', 'gi%')
+              ->orWhere('ifName', 'like', 'qsfp%')
+              ->orWhere('ifName', 'like', 'sfp%')
+              ->orWhere('ifName', 'like', 'te%');
+    })
+    ->select('ifOperStatus', 'ifIndex', 'ifName', 'port_id', 'ifAlias')
+    ->orderBy('ifIndex', 'asc')
+    ->limit(52)
+    ->get()
+    ->map(function ($item) { return (array) $item; })
+    ->toArray();
         }
         else{
             $panelPorts = collect($data['custom_panel_ports'] ?? [])
@@ -462,6 +640,8 @@ elseif ($action === 'update_port_note') {
 	        'ports'      => $panelPorts,
             'port_count'      => $p['port_count'] ?? '',
             'rack_side'  => $p['rack_side'],
+            'device_id'         => $p['device_id'],
+            
         ];}
     else{$occupiedUnits_Back[$unit] = [
             'type'       => $p['type'],
@@ -472,6 +652,7 @@ elseif ($action === 'update_port_note') {
 	        'ports'      => $panelPorts,
             'port_count'      => $p['port_count'] ?? '',
             'rack_side'  => $p['rack_side'],
+            'device_id'         => $p['device_id'],
         ];}    
     }
     // Строим список свободных юнитов (для выпадающего списка)
@@ -488,6 +669,7 @@ for ($u = 1; $u <= $maxUnits; $u++) {
     $currentLocation = DB::table('locations')->where('id', $selectedLocationId)->first();
 
     return [
+        'presets' => $presets ?: [],
         'title'          => 'Кабельный журнал',
         'selected_location' => $selectedLocationId,
         'selected_rack'     => $selectedRackId,
@@ -515,7 +697,10 @@ for ($u = 1; $u <= $maxUnits; $u++) {
         ->values()
         ->toArray();
 
+    $all_links = $data['custom_links'] ?? [];
+
     return [
+        'presets' => $presets ?: [],
         'title'          => 'Кабельный журнал',
         'selected_location' => $selectedLocationId,
         'selected_rack'     => $selectedRackId,
@@ -525,6 +710,7 @@ for ($u = 1; $u <= $maxUnits; $u++) {
         'max_units'         => $max_units,
         'ports'             => $panelPorts,
         'panel'             => $panel,
+        'all_links' => $all_links,
     ];
     }
     
