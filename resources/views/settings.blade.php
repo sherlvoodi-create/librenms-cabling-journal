@@ -1,95 +1,157 @@
-<div style="margin: 15px;">
-<h4>{{ $plugin_name }} Settings:</h4>
+<div class="panel panel-default">
+    <div class="panel-heading">Добавить модель в справочник</div>
+    <div class="panel-body">
+        {{-- Форма добавления в справочник данных --}}
+        <form method="POST" class="form-inline">
+            @csrf
+            <input type="hidden" name="settings[model_presets]" id="hidden_settings_field">
 
-<!-- Example of free-form settings, real plugins should use specific fields -->
-<!-- All input fields should be in the settings array (settings[]) -->
+            <div class="well well-sm">
+                <div class="row">
+                    <div class="col-md-2">
+                        <label>Тип:</label>
+                        <select id="in_type" class="form-control">
+                            <option value="link" selected>Кабель</option>
+                            <option value="rack">Шкаф (Rack)</option>
+                            <option value="panel">Медная панель</option>
+                            <option value="fiber">Оптический кросс</option>
+                            <option value="ups">ИБП (UPS)</option>
+                            <option value="socket220">Блок розеток (PDU)</option>
+                            <option value="other">Другой тип</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Модель / Марка:</label>
+                        <input type="text" id="in_name" class="form-control"
+                            placeholder="напр. Hyperline TWB-FC-1245">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Высота (U):</label>
+                        <input type="number" id="in_u" class="form-control" value="1" min="1">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Порты/Жилы:</label>
+                        <input type="number" id="in_ports" class="form-control" value="24" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label>Примечание:</label>
+                        <input type="text" id="in_note" class="form-control" placeholder="напр. ВхШхГ 12U 600x450">
+                    </div>
+                    <div class="col-md-2">
+                        <label>&nbsp;</label>
+                        <button type="button" class="btn btn-success btn-block" onclick="addModel()">Добавить</button>
+                    </div>
+                </div>
+            </div>
 
-<form method="post" style="margin: 15px">
-    @csrf
-    <table id="settings-table">
-        <tr>
-        <th>Name</th>
-        <th>Value</th>
-        </tr>
-    @forelse($settings as $name => $value)
-        <tr id="settings-row-{{ $name }}">
-            <td>
-                {{ $name }}
-            </td>
-            <td>
-                <input id="value-{{ $value }}" type="text" name="settings[{{ $name }}]" value="{{ $value }}">
-                <button id="delete-{{ $name }}" type="button" onclick="deleteSetting(this.id)" class="delete-button"><i class="fa fa-trash"></i></button>
-            </td>
-        </tr>
-    @empty
-        <tr>
-            <td>No settings yet</td>
-        </tr>
-    @endforelse
-    </table>
-    <div style="margin: 15px 0;">
-        <input id="new-setting-name" style="display: inline-block;" type="text" placeholder="Name">
-        <input id="new-setting-value" style="display: inline-block;" type="text" placeholder="Value">
-        <button type="button" onclick="newSetting()">Add Setting</button>
+            <table class="table table-bordered table-hover">
+                <thead>
+                    <tr class="active">
+                        <th>Тип</th>
+                        <th>Модель (артикул)</th>
+                        <th>Высота (U)</th>
+                        <th>Портов/Жил</th>
+                        <th>Notes</th>
+                        <th style="width: 40px"></th>
+                    </tr>
+                </thead>
+                <tbody id="models_tbody"></tbody>
+            </table>
+
+            <div class="text-right">
+                <hr>
+                <button type="submit" class="btn btn-primary btn-lg">Сохранить всё в БД LibreNMS</button>
+            </div>
+        </form>
     </div>
-    <div>
-        <button type="submit">Save</button>
-    </div>
-</form>
 </div>
 
 <script>
-    function newSetting() {
-        var name = document.getElementById('new-setting-name').value;
-        var value = document.getElementById('new-setting-value').value;
-        var existing = document.getElementById('value-' + name);
+    // Загружаем существующие настройки. 
+    // Если в БД NULL, инициализируем пустой массив.
+    let currentData = [];
+    const rawSettings = @json($settings ?? []);
+    try {
+        // В БД это лежит как {"model_presets": "[{...}]"}
+        // Поэтому сначала проверяем наличие ключа, а потом парсим строку внутри него
+        if (rawSettings && rawSettings.model_presets) {
+            let data = rawSettings.model_presets;
 
-        if (existing) {
-            existing.value = value;
-        } else {
-            // insert setting
-            var newValue = document.createElement('input');
-            newValue.id = 'value-' + name;
-            newValue.type = 'text';
-            newValue.name = 'settings[' + name + ']';
-            newValue.value = value;
+            // Если это строка (JSON), парсим её
+            if (typeof data === 'string') {
+                currentData = JSON.parse(data);
+            }
+            // Если это уже массив (бывает при некоторых преобразованиях Laravel)
+            else if (Array.isArray(data)) {
+                currentData = data;
+            }
+        }
+    } catch (e) {
+        console.error("Ошибка парсинга model_presets:", e);
+        currentData = [];
+    }
 
-            var deleteButton = document.createElement('button');
-            deleteButton.type = 'button';
-            deleteButton.className = 'delete-button';
-            deleteButton.onclick = () => deleteSetting(name);
-            var deleteIcon = document.createElement('i');
-            deleteIcon.className = 'fa fa-trash';
-            deleteButton.appendChild(deleteIcon);
+    // Функция обновления таблицы и скрытого поля
+    function renderTable() {
+        const tbody = document.getElementById('models_tbody');
+        tbody.innerHTML = '';
 
-            var row = document.createElement('tr');
-            row.id = 'settings-row-' + name;
-            var col1 = document.createElement('td');
-            var col2 = document.createElement('td');
-            col1.innerText = name;
-            col2.appendChild(newValue);
-            col2.appendChild(document.createTextNode(' '));
-            col2.appendChild(deleteButton);
-            row.appendChild(col1);
-            row.appendChild(col2);
-            document.getElementById('settings-table').appendChild(row);
+        currentData.forEach((item, index) => {
+            const row = `<tr>
+                <td>${item.type || '-'}</td>
+                <td><strong>${item.name}</strong></td>
+                <td>${item.unit}</td>
+                <td>${item.ports}</td>
+                <td>${item.note}</td>   
+                <td class="text-center">
+                    <button type="button" class="btn btn-danger btn-xs" onclick="deleteModel(${index})">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+
+        // Сериализуем массив в JSON для отправки в LibreNMS
+        document.getElementById('hidden_settings_field').value = JSON.stringify(currentData);
+    }
+
+    function addModel() {
+        const nameInput = document.getElementById('in_name');
+        const techInput = document.getElementById('in_type');
+        const portsInput = document.getElementById('in_ports');
+        const UnitsInput = document.getElementById('in_u');
+        const NoteInput = document.getElementById('in_note');
+
+        if (!nameInput.value.trim()) {
+            alert('Укажите название модели!');
+            return;
         }
 
-        document.getElementById('new-setting-name').value = '';
-        document.getElementById('new-setting-value').value = '';
+        // Добавляем объект в массив
+        currentData.push({
+            name: nameInput.value.trim(),
+            type: techInput.value.trim(),
+            ports: portsInput.value,
+            unit: UnitsInput.value,
+            note: NoteInput.value.trim()
+        });
+
+        renderTable();
+
+        // Очищаем поля ввода для следующей записи
+        nameInput.value = '';
+        techInput.value = '';
+        UnitsInput.value = '';
+        NoteInput.value = '';
+
     }
 
-    function deleteSetting(nameId) {
-        document.getElementById('settings-row-' + nameId.substring(7)).remove();
+    function deleteModel(index) {
+        currentData.splice(index, 1);
+        renderTable();
     }
+
+    // Запуск при загрузке страницы
+    document.addEventListener('DOMContentLoaded', renderTable);
 </script>
-
-<style>
-    #settings-table td, #settings-table th {
-        padding: .2em;
-    }
-    .delete-button {
-        padding: 3px 5px;
-    }
-</style>
-
