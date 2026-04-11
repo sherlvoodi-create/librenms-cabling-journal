@@ -57,11 +57,57 @@ class Page extends PageHook
     $data = file_exists($this->dbPath) ? include $this->dbPath : ['custom_racks' => [], 'custom_panels' => [], 'custom_panel_ports' => [], 'custom_links' => [], 'model_presets' => []];
 
 
+
     //Режим учета кабелей
     if ($request->has('m')) {
+            if($request->input('m') == "test")
+{
+    return ['m' => 'test'];
 
+}        if ($request->has('action')) {
+            $action = $request->input('action');
+            if ($action === 'add_cbl') 
+            {
+                $links = $data['custom_links'] ?? [];
+                $newId = empty($links) ? 1 : max(array_keys($links)) + 1;
+                $newlink = [
+                        'id' => $newId,
+                        'cbl_label' => $request->input('cbl_label')  ?? '',
+                        'name' => $request->input('name') ?? '',
+                        'cbl_type' => $request->input('cbl_type') ?? '',
+                        'cbl_count_cords' => $request->input('cbl_count_cords') ?? '',
+                        'cbl_model' => $request->input('cbl_model') ?? '',
+                        'status' => $request->input('status') ?? '',
+                        'note' => $request->input('note') ?? '',
+                        'side_a_id' => $request->input('side_a_id') ?? '',
+                        'side_a_type' => $request->input('side_a_type') ?? '',
+                        'side_b_id' => $request->input('side_b_id') ?? '',
+                        'side_b_type' => $request->input('nside_b_type') ?? '',
+                        'link_type' => $request->input('link_type') ?? '',
+                        'side_a_geo' => $request->input('side_a_geo') ?? '',
+                        'side_b_geo' => $request->input('side_b_geo') ?? '',
+                        'distance' => $request->input('distance') ?? '',
+                ];
+
+                $data['custom_links'][$newId] = $newlink;
+                // Сохраняем обратно
+                $code = "<?php\nreturn " . var_export($data, true) . ";";
+                file_put_contents($this->dbPath, $code);
+                // Сброс кеша
+                if (function_exists('opcache_invalidate')) {
+                    opcache_invalidate($this->dbPath, true);
+                }
+                clearstatcache(true, $this->dbPath);
+                session()->flash('success', 'Кабель успешно добавлен!');
+                session()->save();
+                // Редиректим на ту же локацию, чтобы обновить список шкафов
+                header("Location: ".url('plugin/CablingJournal?m=cbl'));
+
+            }
+
+        }
         $locations = DB::table('locations')->orderBy('location', 'asc')->pluck('location', 'id')->toArray();
-        
+
         return [
             'mode' => 'cbl',
             'custom_links' => $data['custom_links'],
@@ -92,8 +138,8 @@ class Page extends PageHook
                 'location_id' => $location_id,
                 'name'        => $request->input('name'),
                 'floor'       => $request->input('floor'),
-                'room'        => $_GET['room'] ?? '',        // Новое поле
-                'coordinates' => $_GET['coordinates'] ?? '', // Новое поле
+                'room'        => $request->input('room') ?? '',        // Новое поле
+                'coordinates' => $request->input('coordinates') ?? '', // Новое поле
                 'units'       => (int) $request->input('units', 42),
                 'type'        => $request->input('type'),
                 'note'        => $request->input('note'),
@@ -588,101 +634,101 @@ elseif ($action === 'manage_cable') {
     }
     
     if($selectedLocationId != 0 && $selectedRackId != 0 && $selectedPanelId == 0){
-    // --- РЕЖИМ 3: просмотр конкретного шкафа ---
-    $rack = $data['custom_racks'][$selectedRackId] ?? null;
-    if (!$rack) {
-        // Если шкаф не найден, возвращаемся к списку локаций
-        header("Location: ".url('plugin/CablingJournal?location_id=' . $selectedLocationId));
-        exit;
-    }
-    $devicesList = DB::table('devices')->orderBy('hostname')->get(['device_id', 'hostname', 'sysName','hardware']);
-    $maxUnits = $rack['units'] ?? 42;
-    $occupiedUnits = [];
-
-    // Панели в шкафу (distance_from_rack == 0)
-    $panels = collect($data['custom_panels'] ?? [])->where('rack_id', $selectedRackId) ->where('distance_from_rack', 0);
-    foreach ($panels as $p) {
-        if($p['device_id'] > 0) {
-            $panelPorts = DB::table('ports')
-    ->where('device_id', $p['device_id'])
-    ->where(function ($query) {
-        $query->where('ifName', 'like', 'Port%')
-              ->orWhere('ifName', 'like', 'eth%')
-              ->orWhere('ifName', 'like', 'gi%')
-              ->orWhere('ifName', 'like', 'qsfp%')
-              ->orWhere('ifName', 'like', 'sfp%')
-              ->orWhere('ifName', 'like', 'te%');
-    })
-    ->select('ifOperStatus', 'ifIndex', 'ifName', 'port_id', 'ifAlias')
-    ->orderBy('ifIndex', 'asc')
-    ->limit(52)
-    ->get()
-    ->map(function ($item) { return (array) $item; })
-    ->toArray();
+        // --- РЕЖИМ 3: просмотр конкретного шкафа ---
+        $rack = $data['custom_racks'][$selectedRackId] ?? null;
+        if (!$rack) {
+            // Если шкаф не найден, возвращаемся к списку локаций
+            header("Location: ".url('plugin/CablingJournal?location_id=' . $selectedLocationId));
+            exit;
         }
-        else{
-            $panelPorts = collect($data['custom_panel_ports'] ?? [])
-        ->where('panel_id', $p['id'])
-        ->sortBy('port_number')
-        ->values()
-        ->toArray();    
-        }
-        $unit = $p['start_unit'] ?? 1;
-	    // Получаем порты для этой панели из custom_panel_ports
-        $side = $p['rack_side'] ?? 'front';
-    if($side == 'front'){
-        $occupiedUnits_Front[$unit] = [
-            'type'       => $p['type'],
-            'name'       => $p['name'] ?? 'Панель',
-            'model'      => $p['model'] ?? '',
-            'id'         => $p['id'],
-            'unit_count' => $p['unit_count'] ?? '1',
-	        'ports'      => $panelPorts,
-            'port_count'      => $p['port_count'] ?? '',
-            'rack_side'  => $p['rack_side'],
-            'device_id'         => $p['device_id'],
-            
-        ];}
-    else{$occupiedUnits_Back[$unit] = [
-            'type'       => $p['type'],
-            'name'       => $p['name'] ?? 'Панель',
-            'model'      => $p['model'] ?? '',
-            'id'         => $p['id'],
-            'unit_count' => $p['unit_count'] ?? '1',
-	        'ports'      => $panelPorts,
-            'port_count'      => $p['port_count'] ?? '',
-            'rack_side'  => $p['rack_side'],
-            'device_id'         => $p['device_id'],
-        ];}    
-    }
-    // Строим список свободных юнитов (для выпадающего списка)
-$freeUnitsFront = [];
-$freeUnitsBack = [];
-for ($u = 1; $u <= $maxUnits; $u++) {
-    if (!isset($occupiedUnits_Front[$u])) {
-        $freeUnitsFront[] = $u; 
-    }
-    if(!isset($occupiedUnits_Back[$u])) {
-        $freeUnitsBack[] = $u; 
-    }
-}
-    $currentLocation = DB::table('locations')->where('id', $selectedLocationId)->first();
+        $devicesList = DB::table('devices')->orderBy('hostname')->get(['device_id', 'hostname', 'sysName','hardware']);
+        $maxUnits = $rack['units'] ?? 42;
+        $occupiedUnits = [];
 
-    return [
-        'presets' => $presets ?: [],
-        'title'          => 'Кабельный журнал',
-        'selected_location' => $selectedLocationId,
-        'selected_rack'     => $selectedRackId,
-        'rack'              => $rack,
-        'occupied_units_front'    => $occupiedUnits_Front,
-        'occupied_units_back'    => $occupiedUnits_Back,
-        'max_units'         => $maxUnits,
-        'location_name'     => $currentLocation->location ?? 'Неизвестно',
-        'devices' => $devicesList,
-        'selected_panel'     => $selectedPanelId,
-        'free_units_front' => $freeUnitsFront,
-        'free_units_back' => $freeUnitsBack
-    ];
+        // Панели в шкафу (distance_from_rack == 0)
+        $panels = collect($data['custom_panels'] ?? [])->where('rack_id', $selectedRackId) ->where('distance_from_rack', 0);
+        foreach ($panels as $p) {
+                if($p['device_id'] > 0) {
+                    $panelPorts = DB::table('ports')
+            ->where('device_id', $p['device_id'])
+            ->where(function ($query) {
+                $query->where('ifName', 'like', 'Port%')
+                    ->orWhere('ifName', 'like', 'eth%')
+                    ->orWhere('ifName', 'like', 'gi%')
+                    ->orWhere('ifName', 'like', 'qsfp%')
+                    ->orWhere('ifName', 'like', 'sfp%')
+                    ->orWhere('ifName', 'like', 'te%');
+            })
+            ->select('ifOperStatus', 'ifIndex', 'ifName', 'port_id', 'ifAlias')
+            ->orderBy('ifIndex', 'asc')
+            ->limit(52)
+            ->get()
+            ->map(function ($item) { return (array) $item; })
+            ->toArray();
+                }
+                else{
+                    $panelPorts = collect($data['custom_panel_ports'] ?? [])
+                ->where('panel_id', $p['id'])
+                ->sortBy('port_number')
+                ->values()
+                ->toArray();    
+                }
+                $unit = $p['start_unit'] ?? 1;
+                // Получаем порты для этой панели из custom_panel_ports
+                $side = $p['rack_side'] ?? 'front';
+            if($side == 'front'){
+                $occupiedUnits_Front[$unit] = [
+                    'type'       => $p['type'],
+                    'name'       => $p['name'] ?? 'Панель',
+                    'model'      => $p['model'] ?? '',
+                    'id'         => $p['id'],
+                    'unit_count' => $p['unit_count'] ?? '1',
+                    'ports'      => $panelPorts,
+                    'port_count'      => $p['port_count'] ?? '',
+                    'rack_side'  => $p['rack_side'],
+                    'device_id'         => $p['device_id'],
+                    
+                ];}
+            else{$occupiedUnits_Back[$unit] = [
+                    'type'       => $p['type'],
+                    'name'       => $p['name'] ?? 'Панель',
+                    'model'      => $p['model'] ?? '',
+                    'id'         => $p['id'],
+                    'unit_count' => $p['unit_count'] ?? '1',
+                    'ports'      => $panelPorts,
+                    'port_count'      => $p['port_count'] ?? '',
+                    'rack_side'  => $p['rack_side'],
+                    'device_id'         => $p['device_id'],
+                ];}    
+        }       
+        // Строим список свободных юнитов (для выпадающего списка)
+        $freeUnitsFront = [];
+        $freeUnitsBack = [];
+        for ($u = 1; $u <= $maxUnits; $u++) {
+            if (!isset($occupiedUnits_Front[$u])) {
+                $freeUnitsFront[] = $u; 
+            }
+            if(!isset($occupiedUnits_Back[$u])) {
+                $freeUnitsBack[] = $u; 
+            }
+        }
+        $currentLocation = DB::table('locations')->where('id', $selectedLocationId)->first();
+
+        return [
+            'presets' => $presets ?: [],
+            'title'          => 'Кабельный журнал',
+            'selected_location' => $selectedLocationId,
+            'selected_rack'     => $selectedRackId,
+            'rack'              => $rack,
+            'occupied_units_front'    => $occupiedUnits_Front,
+            'occupied_units_back'    => $occupiedUnits_Back,
+            'max_units'         => $maxUnits,
+            'location_name'     => $currentLocation->location ?? 'Неизвестно',
+            'devices' => $devicesList,
+            'selected_panel'     => $selectedPanelId,
+            'free_units_front' => $freeUnitsFront,
+            'free_units_back' => $freeUnitsBack
+        ];
     }
     else{
         //Режим 4 внутри панели, редактируем порты
